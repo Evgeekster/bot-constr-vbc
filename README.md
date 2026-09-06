@@ -36,6 +36,7 @@ python manage.py runbot_supervisor
 ```
 
 ## Tests
+```are only local```
 
 ```bash
 pytest
