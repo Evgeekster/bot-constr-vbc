@@ -1,0 +1,138 @@
+# services:
+#   postgres:
+#     image: postgres:16-alpine
+#     environment:
+#       POSTGRES_USER: botconstr
+#       POSTGRES_PASSWORD: botconstr
+#       POSTGRES_DB: botconstr
+#     ports:
+#       - "5432:5432"
+#     volumes:
+#       - postgres_data:/var/lib/postgresql/data
+
+#   redis:
+#     image: redis:7-alpine
+#     ports:
+#       - "6379:6379"
+#     volumes:
+#       - redis_data:/data
+
+#   constructor:
+#     build:
+#       context: .
+#       dockerfile: back/Dockerfile
+#     command: python manage.py runserver 0.0.0.0:8000
+#     volumes:
+#       - ./back:/app/back
+#     ports:
+#       - "8000:8000"
+#     environment:
+#       DATABASE_URL: postgres://botconstr:botconstr@postgres:5432/botconstr
+#       REDIS_URL: redis://redis:6379/0
+#       CELERY_BROKER_URL: redis://redis:6379/1
+#       DJANGO_SECRET_KEY: dev-secret-change-me
+#       DJANGO_DEBUG: "1"
+#       FERNET_KEY: ${FERNET_KEY:-}
+#     depends_on:
+#       - postgres
+#       - redis
+
+#   celery:
+#     build:
+#       context: .
+#       dockerfile: back/Dockerfile
+#     command: celery -A config worker -l info
+#     volumes:
+#       - ./back:/app/back
+#     environment:
+#       DATABASE_URL: postgres://botconstr:botconstr@postgres:5432/botconstr
+#       REDIS_URL: redis://redis:6379/0
+#       CELERY_BROKER_URL: redis://redis:6379/1
+#       DJANGO_SECRET_KEY: dev-secret-change-me
+#       FERNET_KEY: ${FERNET_KEY:-}
+#     depends_on:
+#       - postgres
+#       - redis
+
+# volumes:
+#   postgres_data:
+#   redis_data:
+
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: botconstr
+      POSTGRES_PASSWORD: botconstr
+      POSTGRES_DB: botconstr
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U botconstr -d botconstr"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  constructor:
+    build:
+      context: .
+      dockerfile: back/Dockerfile
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - ./back:/app/back
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgres://botconstr:botconstr@postgres:5432/botconstr
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      DJANGO_SECRET_KEY: dev-secret-change-me
+      DJANGO_DEBUG: "1"
+      FERNET_KEY: TyYbIuBHF-mEj34SqGQB5y2LRIA4UjAyCug0jzRwdEY=
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  celery:
+    build:
+      context: .
+      dockerfile: back/Dockerfile
+    # --uid=nobody — celery ругается SecurityWarning при запуске под root
+    # (в этом Dockerfile отдельный non-root пользователь пока не заведён,
+    # nobody есть в базовом образе "из коробки")
+    command: celery -A config worker -l info --uid=nobody --gid=nogroup
+    volumes:
+      - ./back:/app/back
+    environment:
+      DATABASE_URL: postgres://botconstr:botconstr@postgres:5432/botconstr
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      DJANGO_SECRET_KEY: dev-secret-change-me
+      FERNET_KEY: TyYbIuBHF-mEj34SqGQB5y2LRIA4UjAyCug0jzRwdEY=
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  redis_data:
